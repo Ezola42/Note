@@ -1,0 +1,6 @@
+site_name: Rancher Backup Toolkit
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Automation: automation.md

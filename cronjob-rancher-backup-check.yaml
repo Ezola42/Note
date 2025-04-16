@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rancher-backup-check
+  namespace: cattle-resources-system
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: failed-backup-checker
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "🔍 Checking for failed Rancher backups..."
+                  failed_jobs=$(kubectl get backups.management.cattle.io -n cattle-resources-system -o json |
+                    jq -r '.items[] | select(.status.conditions[]?.type=="Failed" and .status.conditions[]?.status=="True") | .metadata.name')
+
+                  if [ -z "$failed_jobs" ]; then
+                    echo "✅ No failed Rancher backup jobs."
+                  else
+                    echo "❌ Failed Rancher backups detected:"
+                    echo "$failed_jobs"
+                    for job in $failed_jobs; do
+                      echo "📜 Logs for $job:"
+                      pod=$(kubectl get pods -n cattle-resources-system -l backup=$job -o jsonpath='{.items[0].metadata.name}')
+                      kubectl logs "$pod" -n cattle-resources-system || echo "⚠️ Could not get logs for $job"
+                      echo "🧹 Deleting failed backup: $job"
+                      kubectl delete backup "$job" -n cattle-resources-system
+                    done
+                  fi
+              resources:
+                limits:
+                  memory: "128Mi"
+                  cpu: "100m"
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+          restartPolicy: OnFailure

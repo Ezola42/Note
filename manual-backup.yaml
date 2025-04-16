@@ -1,0 +1,13 @@
+apiVersion: management.cattle.io/v3
+kind: Backup
+metadata:
+  name: rancher-backup-manual-{{timestamp}}  # Replace with unique name
+  namespace: cattle-resources-system
+spec:
+  resourceSetName: rancher-resource-set
+  storageLocation:
+    s3:
+      bucketName: rancher-backups
+      folder: daily
+      credentialSecretName: s3-creds
+      region: us-east-1

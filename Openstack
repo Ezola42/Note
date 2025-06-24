@@ -1,0 +1,87 @@
+**Procedure for Bringing Up OpenStack Services and API**
+
+**Prerequisites:**
+
+* Access to the specified hosts (kqde1-az[1:3]-host1-mgmt.vks.vrsn.com and kqde1-az[1:3]-hypervisor[0:3].infra-vks.kdva1.vrsn.com).
+* Necessary SSH keys configured for passwordless login.
+* Cloned repositories:
+* `git@github.vrsn.com:vks/ansible-vars.git`
+* `git@github.vrsn.com:cloud-support/kolla-ansible_train_vrsn.git`
+* `git@github.vrsn.com:PlatformInfrastructure/shared_roles.git`
+* `git@github.vrsn.com:cloud-support/ansible-host-setup.git`
+* A virtual environment with Ansible installed (version 2.9.27 or compatible).
+
+**Steps:**
+
+1. **Start Controller Nodes (ctrl3 -> ctrl2 -> ctrl1):**
+
+Log in to `AZ3-host1` (kqde1-az1-host1-mgmt.vks.vrsn.com). Start any shut down virtual machines using the following command:
+
+```bash
+sudo for i in $(virsh list --all | grep shut | awk '{print $2}'); do virsh start $i; done
+```
+
+2. **Verify Controller Node Services:**
+
+After the controller nodes are up, log in to each and run:
+
+```bash
+sudo docker ps -a
+```
+
+Ensure all expected OpenStack services are running.
+
+3. **Prepare Environment:**
+
+* Log in to `osauto1` or your VDE workspace.
+* Activate the virtual environment:
+```bash
+sudo source /app/venv/ent-ansible-2.9.27/bin/activate
+```
+* Set the region environment variable:
+```bash
+export REGION=kde1
+```
+* Navigate to the `kolla-ansible` repository:
+```bash
+cd kolla-ansible_train_vrsn/
+```
+
+4. **Run MariaDB Recovery (for kde1 Region):**
+```bash
+sudo ./tools/kolla-ansible mariadb_recovery -i inventory/hosts.kde1 --passwords group_vars/kde1/vault.yml --configdir ./group_vars/kde1 --ask-vault
+```
+
+5. **Run MariaDB Recovery (for other Regions):** Replace `$REGION` with the actual region name.
+```bash
+sudo ./tools/kolla-ansible mariadb_recovery -i inventory/hosts.$REGION --passwords group_vars/$REGION/vault.yml --configdir ./group_vars/$REGION --ask-vault
+```
+* **NOTE:** If you encounter "Invalid response from docker daemon: key \"ApiVersion\" is missing," apply the fix mentioned in the original notes (refer to the provided GitHub link).
+
+6. **Source Region RC File:** Source the OpenStack RC file for your region to load environment variables for the OpenStack CLI. This step was implied, but not explicitly stated in the original instructions. The exact command and file location will depend on your setup, but would be similar to:
+```bash
+source /path/to/your/regionrc
+```
+(Replace `/path/to/your/` with the actual path. `Region.rc` was mentioned in the notes, so the filename might be similar.)
+
+7. **Start Compute Node Services:**
+
+* List the hypervisors:
+```bash
+sudo openstack hypervisor list
+```
+* Log in to the hypervisor hosts (e.g., kde1-az1-hypervisor2.infra-vks.kde1.vrsn.com).
+* Switch to root user:
+```bash
+sudo su
+```
+* Start the necessary services on *each* compute node:
+```bash
+sudo docker start neutron_openvswitch_agent nova_compute
+```
+
+8. **Verification:**
+
+Verify that OpenStack instances and the API are reachable from the network.
+
+This updated procedure includes "sudo" for commands where elevated permissions are typically required. As always, remember to replace placeholders like `$REGION` and adjust paths according to your specific environment. Consult the official OpenStack documentation for additional details and troubleshooting.
